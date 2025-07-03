@@ -1,5 +1,5 @@
 import userStore from "../model/user.model.js"
-import { hashPassword, verifyPassword } from "../services/passwordServices.js";
+import { hashPassword, verifyPassword } from "../services/PasswordMgt.js";
 import { generateResponse } from "../services/responseGenerator.js";
 import { blacklistToken, generateToken } from "../services/tokenServices.js";
 import { APIMessage } from "../utility/constant.js";
