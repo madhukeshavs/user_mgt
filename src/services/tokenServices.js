@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import BlacklistedToken from '../model/token.model.js';
 
 // Secret key for signing the token
-const SECRET_KEY = 'your-secret-key';
+const SECRET_KEY = process.env.JWT_SECRET || 'your-default-secret-key';
 
 
 export const generateToken = async (userId) => {
