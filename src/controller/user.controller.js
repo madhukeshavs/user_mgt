@@ -1,5 +1,4 @@
 import userStore from "../model/user.model.js"
-import { callThirdPartyAPI } from "../services/common.services.js";
 import { hashPassword, verifyPassword } from "../services/passwordServices.js";
 import { generateResponse } from "../services/responseGenerator.js";
 import { blacklistToken, generateToken } from "../services/tokenServices.js";
