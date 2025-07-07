@@ -4,6 +4,7 @@ import userRouter from './src/routes/user.routes.js';
 import morgan from 'morgan';
 import fs from 'fs';
 import path from 'path';
+import cors from 'cors';
 
 import { fileURLToPath } from 'url';
 
@@ -16,6 +17,7 @@ const ServerPort = process.env.PORT || 8080;
 
 const app = express();
 connectDataBase();
+app.use(cors()); 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }))
 
