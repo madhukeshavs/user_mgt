@@ -7,24 +7,47 @@ import { isValidPassword, isValidName, isValidEmail } from "../utility/regexVali
 
 
 export const handleCreateUser = async (req, res) => {
-    const { name, email, password } = req.body
-    if (!name || !email && !password) return res.status(400).send(generateResponse(400, "Please provide all required fields!", null))
-    if (!isValidPassword(password)) return res.status(400).send(generateResponse(400, APIMessage?.passwordRegexNotMatched, null))
-    if (!isValidName(name)) return res.status(400).send(generateResponse(400, APIMessage?.nameRegexNotMatched, null))
-    if (!isValidEmail(email)) return res.status(400).send(generateResponse(400, APIMessage?.emailRegexNotMatched, null))
+    const authType = req?.body?.authType;
+    if (!authType) return res.status(400).send(generateResponse(400, "Please provide authType!", null));
+    if (authType !== "userPin" && authType !== "swipeCard") return res.status(400).send(generateResponse(400, "Invalid authType! Use 'userPin' or 'swipeCard'.", null));
+    if (authType === "userPin") {
+        console.log("Creating user with userPin authentication");
+        const { name, email, password } = req.body
+        if (!name || !email && !password) return res.status(400).send(generateResponse(400, "Please provide all required fields!", null))
+        if (!isValidPassword(password)) return res.status(400).send(generateResponse(400, APIMessage?.passwordRegexNotMatched, null))
+        if (!isValidName(name)) return res.status(400).send(generateResponse(400, APIMessage?.nameRegexNotMatched, null))
+        if (!isValidEmail(email)) return res.status(400).send(generateResponse(400, APIMessage?.emailRegexNotMatched, null))
 
-    // Check if user already exists
-    let existingUser = await userStore.findOne({ email });
-    if (existingUser) return res.status(400).send(generateResponse(400, "User already exists with this email!", null))
+        // Check if user already exists
+        let existingUser = await userStore.findOne({ email });
+        if (existingUser) return res.status(400).send(generateResponse(400, "User already exists with this email!", null))
 
-    // Hash password
-    const hashedPassword = await hashPassword(password);
+        // Hash password
+        const hashedPassword = await hashPassword(password);
 
-    // Create new user
-    let newUser = await userStore.create({ name, email, password: hashedPassword });
+        // Create new user
+        let newUser = await userStore.create({ name, email, password: hashedPassword });
 
-    newUser.password = undefined; // Remove password from response
-    return res.status(201).send(generateResponse(201, "User created successfully!", newUser));
+        newUser.password = undefined; // Remove password from response
+        return res.status(201).send(generateResponse(201, "User created successfully!", newUser));
+    } else if (authType === "swipeCard") {
+        const { name, email, swipeCard } = req.body;
+        if (!name || !email || !swipeCard) return res.status(400).send(generateResponse(400, "Please provide all required fields!", null));
+        if (!isValidName(name)) return res.status(400).send(generateResponse(400, APIMessage?.nameRegexNotMatched, null));
+        if (!isValidEmail(email)) return res.status(400).send(generateResponse(400, APIMessage?.emailRegexNotMatched, null));
+
+        // Check if user already exists with swipe card
+        let existingUser = await userStore.findOne({
+            $or: [{ swipeCard }, { email }]
+        });
+        if (existingUser) return res.status(400).send(generateResponse(400, "User already exists!", null));
+
+        // Create new user
+        let newUser = await userStore.create({ name, email, swipeCard });
+
+        newUser.swipeCard = undefined; // Remove swipe card from response
+        return res.status(201).send(generateResponse(201, "User created successfully!", newUser));
+    }
 }
 
 export const handleGetUser = async (req, res) => {
@@ -37,22 +60,40 @@ export const handleGetUser = async (req, res) => {
 }
 
 export const handleLoginUser = async (req, res) => {
-    const { email, password } = req.body;
-    if (!email || !password) return res.status(400).send(generateResponse(400, "Please provide both email and password!", null));
+    const authType = req?.body?.authType;
+    if (!authType) return res.status(400).send(generateResponse(400, "Please provide authType!", null));
+    if (authType === "userPin") {
+        const { email, password } = req.body;
+        if (!email || !password) return res.status(400).send(generateResponse(400, "Please provide both email and password!", null));
 
-    // Check if user exists
-    const user = await userStore.findOne({ email });
-    if (!user) return res.status(404).send(generateResponse(404, "User not found!", null));
+        // Check if user exists
+        const user = await userStore.findOne({ email });
+        if (!user) return res.status(404).send(generateResponse(404, "User not found!", null));
 
-    // Check password
-    let checkPassword = await verifyPassword(password, user.password);
-    if (!checkPassword) return res.status(401).send(generateResponse(401, "Invalid password!", null));
+        // Check password
+        let checkPassword = await verifyPassword(password, user.password);
+        if (!checkPassword) return res.status(401).send(generateResponse(401, "Invalid password!", null));
 
-    const token = await generateToken(user._id);
-    if (!token) return res.status(500).send(generateResponse(500, "Failed to generate token!", null));
+        const token = await generateToken(user._id);
+        if (!token) return res.status(500).send(generateResponse(500, "Failed to generate token!", null));
 
-    user.password = undefined; // Remove password from response
-    return res.status(200).send(generateResponse(200, "Login successful!", { user, token }));
+        user.password = undefined; // Remove password from response
+        return res.status(200).send(generateResponse(200, "Login successful!", { user, token }));
+    } else if (authType === "swipeCard") {
+        const { swipeCard } = req.body;
+        if (!swipeCard) return res.status(400).send(generateResponse(400, "Please provide swipe card!", null));
+
+        // Check if user exists with swipe card
+        const user = await userStore.findOne({ swipeCard });
+        if (!user) return res.status(404).send(generateResponse(404, "User not found!", null));
+
+        const token = await generateToken(user._id);
+        if (!token) return res.status(500).send(generateResponse(500, "Failed to generate token!", null));
+
+        user.password = undefined; // Remove password from response
+        user.swipeCard = undefined; // Remove swipe card from response
+        return res.status(200).send(generateResponse(200, "Login successful!", { user, token }));
+    }
 }
 
 export const handleUpdateUser = async (req, res) => {
@@ -90,5 +131,5 @@ export const handleLogoutUser = async (req, res) => {
     if (!expiredToken) return res.status(500).send(generateResponse(500, "Failed to blacklist token!", null));
 
     // Invalidate the token by not returning it
-    return res.status(200).send(generateResponse(200, "User logged out successfully!", expiredToken));
+    return res.status(200).send(generateResponse(200, "User logged out successfully!", null));
 }
